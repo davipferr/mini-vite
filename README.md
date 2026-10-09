@@ -152,6 +152,72 @@ Because `message.js` was invalidated, its re-transform rewrites its own import t
 - Open `/__mini-vite/graph` and look at `react_jsx-runtime.js`. You never imported it:
   esbuild's JSX transform did.
 
+## Phase 3: the import lexer in Rust, compiled to WebAssembly
+
+Finding imports is the hottest step in the server: it runs on every module, every time
+one changes. So that one function is swappable. The rest of the server stays in TypeScript
+and calls `parseImports(code)` ([src/lexer/index.ts](src/lexer/index.ts)) without knowing
+which implementation answers:
+
+```bash
+node dist/cli.js examples/react --lexer js        # es-module-lexer (default)
+node dist/cli.js examples/react --lexer rust      # lexer-rs
+node dist/cli.js examples/react --lexer compare   # both, per-module timings + diffs
+```
+
+```bash
+npm run bench:lexer
+```
+
+In compare mode, every module logs `js 0.030ms  rust 0.016ms  ✓ 4 imports`, and
+`/__mini-vite/lexer` shows the totals. es-module-lexer's answer is the one used, so a Rust
+bug can't break the app. `bench:lexer` checks both lexers against every JS file in `node_modules`
+(results must be identical) and then times them, grouped by file size. To run it on your own
+code: `npm run bench:lexer -- path/to/src`. [lexer-rs/fixtures](lexer-rs/fixtures) holds
+the tricky cases (strings, regexes, nested templates, `obj.import()`...).
+
+### How Node talks to Rust
+
+[lexer-rs/src/lib.rs](lexer-rs/src/lib.rs) has no dependencies and no wasm-bindgen. It
+exports three plain functions, and [src/lexer/rust.ts](src/lexer/rust.ts) drives them:
+
+```
+JS                                         wasm (Rust)
+ptr = input_buffer(code.length)    ───►    resize a Vec<u16>, return its address
+write code as UTF-16 at ptr        ───►    (JS writes straight into wasm memory)
+n = parse(code.length)             ───►    lex, store [s, e, d, isLiteral] per import
+read n*4 i32s at output_ptr()      ◄───    (JS reads straight out of wasm memory)
+```
+
+Wasm functions only take and return numbers, so strings travel through the shared memory.
+Rust lexes UTF-16 code units (`&[u16]`), not UTF-8, so its offsets are JS string indexes
+with no conversion. That's also how es-module-lexer works.
+
+### Reading the numbers honestly
+
+- **es-module-lexer is already WebAssembly** (C compiled to wasm). This is wasm vs wasm,
+  not JS vs Rust. Both pay the same cost to copy the string in and the results out.
+- **lexer-rs does less work.** es-module-lexer also collects *exports*, statement ranges
+  (`ss`/`se`), import attributes and facade detection; lexer-rs only finds what the dev
+  server uses (`n`, `s`, `e`, `d`). Part of the speedup is simply skipping that work.
+- **It's still small change.** Lexing all of this app's modules takes about a millisecond
+  either way. In a real dev server, disk reads and esbuild's JSX transform cost far more.
+- **Correctness is checked against es-module-lexer, not proven.** A lexer can't fully tell
+  a regex from a division without parsing (`if (x) /re/.test(y)` fools lexer-rs). Run
+  `bench:lexer` on more code to hunt for cases.
+
+### Rebuilding the wasm
+
+`wasm/mini_vite_lexer.wasm` is committed, so you only need Rust to change the lexer:
+
+```bash
+rustup target add wasm32-unknown-unknown
+```
+
+```bash
+npm run build:wasm
+```
+
 ## Map to the real Vite source
 
 Clone [vitejs/vite](https://github.com/vitejs/vite) and open `packages/vite/src/`:
@@ -184,6 +250,10 @@ src/
   hmr.ts            WebSocket channel, fs.watch, update propagation
   optimizer.ts      dep scanning + esbuild pre-bundling
   client/client.ts  browser side: WebSocket, import.meta.hot, overlay
+  lexer/index.ts    parseImports(): js / rust / compare switch
+  lexer/rust.ts     loads the .wasm, copies strings in and results out
+  lexer/bench.ts    correctness + speed comparison
+lexer-rs/           the Rust import lexer (compiled to wasm/mini_vite_lexer.wasm)
 examples/
   vanilla/          phase 1: plain JS, CSS, dynamic import
   react/            phase 2: JSX, TS, bare imports

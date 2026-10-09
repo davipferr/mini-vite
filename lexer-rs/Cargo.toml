@@ -1,0 +1,21 @@
+[package]
+name = "mini-vite-lexer"
+version = "0.1.0"
+edition = "2024"
+description = "Finds import statements in JavaScript. Compiled to WebAssembly and called from the mini-vite dev server."
+
+[lib]
+# cdylib = a C-style dynamic library. For the wasm32 target that means a standalone .wasm
+# file whose `#[unsafe(no_mangle)] extern "C"` functions become the module's exports.
+crate-type = ["cdylib"]
+
+[dependencies]
+# None on purpose: no wasm-bindgen, no JS glue generator. The Node side talks to the raw
+# exports and reads/writes wasm memory directly, which is how es-module-lexer works too.
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

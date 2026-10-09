@@ -8,10 +8,13 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:wasm": "cargo build --release --target wasm32-unknown-unknown --manifest-path lexer-rs/Cargo.toml && node -e \"require('fs').copyFileSync('lexer-rs/target/wasm32-unknown-unknown/release/mini_vite_lexer.wasm', 'wasm/mini_vite_lexer.wasm')\"",
     "watch": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "dev:vanilla": "npm run build && node dist/cli.js examples/vanilla",
-    "dev:react": "npm run build && node dist/cli.js examples/react"
+    "dev:react": "npm run build && node dist/cli.js examples/react",
+    "dev:compare": "npm run build && node dist/cli.js examples/react --lexer compare",
+    "bench:lexer": "npm run build && node dist/lexer/bench.js"
   },
   "license": "MIT",
   "dependencies": {

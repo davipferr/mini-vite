@@ -13,9 +13,9 @@ import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { init } from 'es-module-lexer'
 import type { ServerContext } from './context.js'
 import { createHmrChannel, handleFileChange, watchFiles } from './hmr.js'
+import { getLexerStats, initLexer, type LexerMode } from './lexer/index.js'
 import { ModuleGraph } from './moduleGraph.js'
 import { DepOptimizer } from './optimizer.js'
 import { fileToUrl, urlToFile } from './resolve.js'
@@ -27,6 +27,14 @@ export interface ServerOptions {
   port: number
   force: boolean
   debug: boolean
+  /** Which import lexer to use: es-module-lexer (js), lexer-rs (rust), or both (compare). */
+  lexer: LexerMode
+}
+
+const LEXER_LABELS: Record<LexerMode, string> = {
+  js: 'es-module-lexer (C → wasm)',
+  rust: 'lexer-rs (Rust → wasm)',
+  compare: 'compare: es-module-lexer + lexer-rs on every module, totals at /__mini-vite/lexer',
 }
 
 const clientFile = fileURLToPath(new URL('./client/client.js', import.meta.url))
@@ -37,7 +45,7 @@ export async function createServer(options: ServerOptions): Promise<http.Server>
   if (!fs.existsSync(path.join(root, 'index.html'))) {
     throw new Error(`No index.html found in ${root}`)
   }
-  await init // es-module-lexer is WebAssembly and has to be compiled once before use
+  await initLexer(options.lexer) // both lexers are WebAssembly, compiled once up front
 
   const httpServer = http.createServer()
   const ctx: ServerContext = {
@@ -78,7 +86,8 @@ export async function createServer(options: ServerOptions): Promise<http.Server>
     `\n  ${c.green(c.bold('mini-vite'))} ${c.dim(`ready in ${Math.round(performance.now() - start)} ms`)}\n\n` +
       `  ${c.green('➜')}  Local:  ${c.cyan(`http://localhost:${c.bold(String(port))}/`)}\n` +
       `  ${c.green('➜')}  Graph:  ${c.dim(`http://localhost:${port}/__mini-vite/graph`)}\n` +
-      `  ${c.green('➜')}  Root:   ${c.dim(root)}\n`,
+      `  ${c.green('➜')}  Root:   ${c.dim(root)}\n` +
+      `  ${c.green('➜')}  Lexer:  ${c.dim(LEXER_LABELS[options.lexer])}\n`,
   )
   return httpServer
 }
@@ -107,6 +116,12 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   if (pathname === '/__mini-vite/graph') {
     send(req, res, JSON.stringify(ctx.graph, null, 2), 'application/json')
     return done('graph')
+  }
+
+  // Lexer totals: time spent in each lexer, and any disagreements (--lexer compare)
+  if (pathname === '/__mini-vite/lexer') {
+    send(req, res, JSON.stringify(getLexerStats(), null, 2), 'application/json')
+    return done('lexer')
   }
 
   // 3. Pre-bundled npm dependencies. Already plain ESM, no transform needed.

@@ -3,7 +3,8 @@
  *
  *   read file
  *     -> compile (JSX/TS via esbuild; CSS/JSON/assets become JS modules)
- *     -> import analysis: find every import with es-module-lexer, resolve it, and rewrite
+ *     -> import analysis: find every import (es-module-lexer or our Rust lexer, see
+ *        src/lexer), resolve it, and rewrite
  *        the specifier to a URL the browser can fetch
  *     -> record the edges in the module graph
  *     -> inject `import.meta.hot` if the module uses HMR
@@ -12,9 +13,9 @@
  *                  packages/vite/src/node/plugins/importAnalysis.ts  <- the interesting one
  */
 import fs from 'node:fs/promises'
-import { init, parse } from 'es-module-lexer'
 import type { ServerContext } from './context.js'
 import type { ModuleNode, TransformResult } from './moduleGraph.js'
+import { parseImports } from './lexer/index.js'
 import { esbuildTransform } from './optimizer.js'
 import { fileToUrl, resolveImportPath, urlToFile } from './resolve.js'
 import { CLIENT_URL, ESBUILD_RE, JS_RE, cleanUrl, etag, injectQuery, isBareImport } from './utils.js'
@@ -93,8 +94,7 @@ interface ImportAnalysis {
 }
 
 async function importAnalysis(code: string, mod: ModuleNode, ctx: ServerContext): Promise<ImportAnalysis> {
-  await init
-  const [imports] = parse(code, mod.url)
+  const imports = parseImports(code, mod.url)
 
   const edits: Edit[] = []
   const importedModules = new Map<string, string>()

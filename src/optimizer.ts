@@ -20,10 +20,10 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import { init, parse } from 'es-module-lexer'
 import type * as Esbuild from 'esbuild'
+import { parseImports } from './lexer/index.js'
 import { resolveImportPath } from './resolve.js'
-import { DEPS_PREFIX, ESBUILD_RE, JS_RE, c, isBareImport, log } from './utils.js'
+import { DEPS_PREFIX, ESBUILD_RE, JS_RE, c, isBareImport, log, normalizePath } from './utils.js'
 
 let esbuildPromise: Promise<typeof Esbuild> | undefined
 
@@ -98,7 +98,6 @@ function createDepEntry(spec: string, req: NodeJS.Require): string {
  * We follow relative imports with the same lexer the dev server uses for rewriting.
  */
 export async function scanImports(root: string): Promise<Set<string>> {
-  await init
   const deps = new Set<string>()
   const htmlFile = path.join(root, 'index.html')
   if (!fs.existsSync(htmlFile)) return deps
@@ -118,7 +117,7 @@ export async function scanImports(root: string): Promise<Set<string>> {
     try {
       let code = fs.readFileSync(file, 'utf-8')
       if (ESBUILD_RE.test(file)) code = await esbuildTransform(code, file, file)
-      const [imports] = parse(code)
+      const imports = parseImports(code, normalizePath(path.relative(root, file)))
       for (const { n: spec, d } of imports) {
         if (!spec || d === -2) continue
         if (isBareImport(spec)) deps.add(spec)
