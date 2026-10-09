@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mini-vite · vanilla</title>
+  </head>
+  <body>
+    <main id="app">
+      <h1>mini-vite</h1>
+      <p class="hint">Open DevTools → Network (filter: JS) and Console, then edit files in <code>src/</code>.</p>
+
+      <section>
+        <h2>message.js <small>accepted by main.js</small></h2>
+        <p id="message"></p>
+      </section>
+
+      <section>
+        <h2>counter.js <small>self-accepting, state kept in hot.data</small></h2>
+        <button id="counter"></button>
+      </section>
+
+      <section>
+        <h2>lazy.js <small>dynamic import()</small></h2>
+        <button id="load-lazy">load lazy module</button>
+        <pre id="lazy-output"></pre>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

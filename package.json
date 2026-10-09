@@ -1,0 +1,29 @@
+{
+  "name": "mini-vite",
+  "version": "0.1.0",
+  "description": "A tiny Vite clone for learning: import resolution, module graph, import rewriting and HMR over WebSocket.",
+  "type": "module",
+  "bin": {
+    "mini-vite": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "dev:vanilla": "npm run build && node dist/cli.js examples/vanilla",
+    "dev:react": "npm run build && node dist/cli.js examples/react"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "es-module-lexer": "^1.7.0",
+    "esbuild": "^0.28.2",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/ws": "^8.18.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}

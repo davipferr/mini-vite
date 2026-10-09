@@ -1,0 +1,16 @@
+h1 {
+  color: #61dafb;
+}
+
+.hint {
+  opacity: 0.7;
+}
+
+button {
+  font: inherit;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #61dafb;
+  background: transparent;
+  cursor: pointer;
+}
